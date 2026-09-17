@@ -1,0 +1,172 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  passwordHash  String
+  emailVerified Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  sessions            Session[]
+  verificationCodes   VerificationCode[]
+  passwordResetTokens PasswordResetToken[]
+  subscriptions      Subscription[]
+  paymentEvents       PaymentEvent[]
+
+  @@map("users")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model VerificationCode {
+  id         String   @id @default(cuid())
+  code       String
+  userId     String
+  expiresAt  DateTime
+  lastSentAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, code])
+  @@map("verification_codes")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  userId    String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("password_reset_tokens")
+}
+
+model Plan {
+  id                String   @id @default(cuid())
+  name              String
+  interval          String
+  amountMinor      Int
+  currency          String
+  providerPlanCode  String?
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  subscriptions       Subscription[]
+  fromChanges         SubscriptionChange[] @relation("FromPlan")
+  toChanges           SubscriptionChange[] @relation("ToPlan")
+
+  @@unique([name, interval])
+  @@index([active])
+  @@map("plans")
+}
+
+model Subscription {
+  id                       String    @id @default(cuid())
+  userId                   String
+  planId                   String
+  status                   String
+  currency                 String
+  amountMinor              Int
+  currentPeriodStart       DateTime
+  currentPeriodEnd         DateTime
+  cancelAtPeriodEnd        Boolean   @default(false)
+  cancelledAt              DateTime?
+  cancellationReason       String?
+  providerCustomerCode     String?
+  providerSubscriptionCode String?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  user             User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan             Plan                 @relation(fields: [planId], references: [id])
+  changes          SubscriptionChange[]
+  paymentEvents    PaymentEvent[]
+
+  @@index([userId])
+  @@index([planId])
+  @@index([status])
+  @@index([currentPeriodEnd])
+  @@index([providerSubscriptionCode])
+  @@map("subscriptions")
+}
+
+model SubscriptionChange {
+  id                    String    @id @default(cuid())
+  subscriptionId        String
+  fromPlanId            String
+  toPlanId              String
+  changeType            String
+  effectiveAt            DateTime
+  daysRemaining         Int?
+  oldPeriodAmountMinor  Int?
+  newPeriodAmountMinor  Int?
+  creditMinor           Int?
+  chargeMinor           Int?
+  currency              String
+  status                String
+  createdAt             DateTime  @default(now())
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  fromPlan     Plan         @relation("FromPlan", fields: [fromPlanId], references: [id])
+  toPlan       Plan         @relation("ToPlan", fields: [toPlanId], references: [id])
+
+  @@index([subscriptionId])
+  @@index([effectiveAt])
+  @@index([status])
+  @@map("subscription_changes")
+}
+
+model PaymentEvent {
+  id                 String    @id @default(cuid())
+  userId             String
+  subscriptionId     String?
+  provider            String
+  providerReference   String
+  eventType           String
+  status              String
+  amountMinor        Int
+  currency            String
+  payload             String?
+  processedAt         DateTime?
+  createdAt           DateTime  @default(now())
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, providerReference, eventType])
+  @@index([userId])
+  @@index([subscriptionId])
+  @@index([providerReference])
+  @@index([createdAt])
+  @@map("payment_events")
+}
