@@ -8,7 +8,10 @@ import {
 } from "@/lib/rate-limit";
 import { checkoutVerifySchema } from "@/lib/validation/checkout";
 import { verifyPaystackTransaction } from "@/lib/paystack";
-import { fulfilSubscription } from "@/lib/fulfilment";
+import {
+  fulfilVerifiedPayment,
+  resolveUpgradeChangeForInitiated,
+} from "@/lib/upgrades";
 
 const VERIFY_IP_LIMIT = { limit: 15, windowSeconds: 60 };
 const VERIFY_USER_LIMIT = { limit: 10, windowSeconds: 60 };
@@ -104,6 +107,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 7b. Upgrade Detection: if this initiation targets a Monthly → Yearly
+    //     upgrade, the expected payment amount is the stored prorated charge,
+    //     not the full Yearly plan amount.
+    const upgradeChange = await resolveUpgradeChangeForInitiated(
+      "paystack",
+      reference
+    );
+
+    const expectedAmountMinor = upgradeChange
+      ? upgradeChange.chargeMinor
+      : plan.amountMinor;
+    const expectedCurrency = upgradeChange
+      ? upgradeChange.currency
+      : plan.currency;
+
     // 8. Idempotency Pre-Check: Return existing verification if already processed
     const existingVerification = await prisma.paymentEvent.findUnique({
       where: {
@@ -116,7 +134,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (existingVerification) {
-      const fulfilment = await fulfilSubscription({
+      const fulfilment = await fulfilVerifiedPayment({
         provider: "paystack",
         providerReference: reference,
       });
@@ -157,10 +175,10 @@ export async function POST(request: NextRequest) {
       integrityFailureReason = `Transaction domain is '${txData.domain}', expected 'test'.`;
     } else if (txData.reference !== reference) {
       integrityFailureReason = `Transaction reference '${txData.reference}' does not match expected reference '${reference}'.`;
-    } else if (txData.amount !== plan.amountMinor) {
-      integrityFailureReason = `Transaction amount (${txData.amount} minor units) does not match expected plan amount (${plan.amountMinor} minor units).`;
-    } else if (txData.currency.toUpperCase() !== plan.currency.toUpperCase()) {
-      integrityFailureReason = `Transaction currency '${txData.currency}' does not match expected plan currency '${plan.currency}'.`;
+    } else if (txData.amount !== expectedAmountMinor) {
+      integrityFailureReason = `Transaction amount (${txData.amount} minor units) does not match expected amount (${expectedAmountMinor} minor units).`;
+    } else if (txData.currency.toUpperCase() !== expectedCurrency.toUpperCase()) {
+      integrityFailureReason = `Transaction currency '${txData.currency}' does not match expected currency '${expectedCurrency}'.`;
     }
 
     if (integrityFailureReason) {
@@ -172,15 +190,15 @@ export async function POST(request: NextRequest) {
             providerReference: reference,
             eventType: "payment.failed",
             status: "failed",
-            amountMinor: txData?.amount ?? plan.amountMinor,
-            currency: txData?.currency ?? plan.currency,
+            amountMinor: txData?.amount ?? expectedAmountMinor,
+            currency: txData?.currency ?? expectedCurrency,
             processedAt: new Date(),
             payload: JSON.stringify({
               reason: integrityFailureReason,
               gatewayResponse: txData?.gateway_response,
               paystackStatus: providerStatus,
               actualAmount: txData?.amount,
-              expectedAmount: plan.amountMinor,
+              expectedAmount: expectedAmountMinor,
             }),
           },
         });
@@ -231,8 +249,8 @@ export async function POST(request: NextRequest) {
             providerReference: reference,
             eventType: "payment.reversed",
             status: "reversed",
-            amountMinor: txData.amount ?? plan.amountMinor,
-            currency: txData.currency ?? plan.currency,
+            amountMinor: txData.amount ?? expectedAmountMinor,
+            currency: txData.currency ?? expectedCurrency,
             processedAt: new Date(),
             payload: JSON.stringify({
               reason: "Transaction was reversed by payment provider.",
@@ -278,15 +296,15 @@ export async function POST(request: NextRequest) {
             providerReference: reference,
             eventType: "payment.failed",
             status: "failed",
-            amountMinor: txData?.amount ?? plan.amountMinor,
-            currency: txData?.currency ?? plan.currency,
+            amountMinor: txData?.amount ?? expectedAmountMinor,
+            currency: txData?.currency ?? expectedCurrency,
             processedAt: new Date(),
             payload: JSON.stringify({
               reason: failureReason,
               gatewayResponse: txData?.gateway_response,
               paystackStatus: providerStatus,
               actualAmount: txData?.amount,
-              expectedAmount: plan.amountMinor,
+              expectedAmount: expectedAmountMinor,
             }),
           },
         });
@@ -344,7 +362,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 12. Fulfil Subscription (Stage 4 Entitlement)
-    const fulfilment = await fulfilSubscription({
+    const fulfilment = await fulfilVerifiedPayment({
       provider: "paystack",
       providerReference: reference,
     });

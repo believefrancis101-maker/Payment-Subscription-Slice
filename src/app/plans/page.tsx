@@ -64,6 +64,14 @@ export default async function PlansPage({ searchParams }: PlansPageProps) {
   const activePlanId = activeSubscription ? activeSubscription.planId : null;
   const hasActivePaidSubscription = Boolean(activeSubscription && activeSubscription.plan.amountMinor > 0);
 
+  // Stage 5: a user on an active Monthly plan may upgrade to Yearly.
+  const isUpgradeEligible = Boolean(
+    activeSubscription &&
+    activeSubscription.plan.amountMinor > 0 &&
+    activeSubscription.plan.interval.toLowerCase() === "monthly" &&
+    !activeSubscription.cancelAtPeriodEnd
+  );
+
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50">
       {/* Top Navigation */}
@@ -239,6 +247,9 @@ export default async function PlansPage({ searchParams }: PlansPageProps) {
                     isCurrent={isCurrent}
                     isPaid={isPaid}
                     hasActivePaidSubscription={hasActivePaidSubscription}
+                    upgradeFromMonthly={
+                      isUpgradeEligible && !isCurrent && plan.name.toLowerCase() === "yearly"
+                    }
                   />
                 </div>
               </div>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import UpgradeCardAction from "./upgrade-card-action";
 
 interface PlanCardActionProps {
   planId: string;
@@ -9,6 +10,7 @@ interface PlanCardActionProps {
   isCurrent: boolean;
   isPaid: boolean;
   hasActivePaidSubscription?: boolean;
+  upgradeFromMonthly?: boolean;
 }
 
 export default function PlanCardAction({
@@ -17,6 +19,7 @@ export default function PlanCardAction({
   isCurrent,
   isPaid,
   hasActivePaidSubscription,
+  upgradeFromMonthly,
 }: PlanCardActionProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -36,6 +39,12 @@ export default function PlanCardAction({
         </button>
       </div>
     );
+  }
+
+  // Stage 5: active Monthly subscriber on the Yearly card shows the
+  // server-priced prorated upgrade flow instead of the disabled placeholder.
+  if (upgradeFromMonthly) {
+    return <UpgradeCardAction planId={planId} />;
   }
 
   // Active subscription protection: Do not allow purchasing another paid plan at Stage 4

@@ -10,4 +10,16 @@ export const checkoutVerifySchema = z.object({
 
 export type CheckoutVerifyInput = z.infer<typeof checkoutVerifySchema>;
 
+export const upgradeQuoteSchema = z.object({
+  toPlanId: z.string().min(1, "Target plan ID cannot be empty.").optional(),
+});
+
+export type UpgradeQuoteInput = z.infer<typeof upgradeQuoteSchema>;
+
+export const upgradeInitiateSchema = z.object({
+  toPlanId: z.string().min(1, "Target plan ID cannot be empty.").optional(),
+});
+
+export type UpgradeInitiateInput = z.infer<typeof upgradeInitiateSchema>;
+
 

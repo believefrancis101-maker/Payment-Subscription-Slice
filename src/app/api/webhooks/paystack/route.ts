@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { verifyPaystackSignature } from "@/lib/paystack";
-import { fulfilSubscription } from "@/lib/fulfilment";
+import {
+  fulfilVerifiedPayment,
+  resolveUpgradeChangeForInitiated,
+} from "@/lib/upgrades";
 
 export async function POST(request: NextRequest) {
   try {
@@ -91,7 +94,7 @@ export async function POST(request: NextRequest) {
 
     if (existingEvent) {
       // Ensure subscription fulfilment has been processed idempotently
-      await fulfilSubscription({
+      await fulfilVerifiedPayment({
         provider: "paystack",
         providerReference: reference,
       });
@@ -147,13 +150,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 7. Validate Plan Amounts for charge.success
+    // 7. Validate Amounts for charge.success
+    //    For an upgrade payment the expected amount is the stored prorated
+    //    charge minus the unused-period credit, NOT the full Yearly amount.
     if (planId) {
       const plan = await prisma.plan.findUnique({ where: { id: planId } });
       if (plan) {
+        const upgradeChange = await resolveUpgradeChangeForInitiated(
+          "paystack",
+          reference
+        );
+        const expectedAmount = upgradeChange
+          ? upgradeChange.chargeMinor
+          : plan.amountMinor;
+        const expectedCurrency = upgradeChange
+          ? upgradeChange.currency
+          : plan.currency;
+
         if (
-          txData.amount !== plan.amountMinor ||
-          txData.currency?.toUpperCase() !== plan.currency.toUpperCase()
+          txData.amount !== expectedAmount ||
+          txData.currency?.toUpperCase() !== expectedCurrency.toUpperCase()
         ) {
           try {
             await prisma.paymentEvent.create({
@@ -164,13 +180,14 @@ export async function POST(request: NextRequest) {
                 eventType: "payment.failed",
                 status: "failed",
                 amountMinor: txData.amount ?? 0,
-                currency: txData.currency ?? "NGN",
+                currency: txData.currency ?? expectedCurrency,
                 processedAt: new Date(),
                 payload: JSON.stringify({
-                  reason: "Webhook amount/currency mismatch with database plan.",
-                  expectedAmount: plan.amountMinor,
+                  reason: "Webhook amount/currency mismatch with stored checkout expectation.",
+                  upgrade: upgradeChange ? true : false,
+                  expectedAmount,
                   receivedAmount: txData.amount,
-                  expectedCurrency: plan.currency,
+                  expectedCurrency,
                   receivedCurrency: txData.currency,
                 }),
               },
@@ -228,8 +245,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 10. Fulfil Subscription (Stage 4 Entitlement)
-    const fulfilment = await fulfilSubscription({
+    // 10. Fulfil Subscription or Upgrade (Stage 4/5 Entitlement)
+    const fulfilment = await fulfilVerifiedPayment({
       provider: "paystack",
       providerReference: reference,
     });
