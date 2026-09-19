@@ -262,10 +262,10 @@ async function runVerification() {
     );
 
     // -------------------------------------------------------------
-    // Test 10: Real API Call & Clear Configuration Error on Invalid Key
+    // Test 10: Real API Call & Checkout Initiation
     // -------------------------------------------------------------
-    console.log("\n--- Test 10: Real API Call & Clear Configuration Error on Invalid Key ---");
-    const invalidKeyRes = await fetch("http://localhost:3000/api/checkout/initiate", {
+    console.log("\n--- Test 10: Real API Call & Checkout Initiation ---");
+    const checkoutRes = await fetch("http://localhost:3000/api/checkout/initiate", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -274,16 +274,23 @@ async function runVerification() {
       body: JSON.stringify({ planId: monthlyPlan.id }),
     });
 
-    const invalidKeyJson = await invalidKeyRes.json();
-    assert(
-      invalidKeyRes.status === 500,
-      `Initiation with placeholder/unauthenticated Paystack key returns 500 (got ${invalidKeyRes.status})`
-    );
-    assert(
-      invalidKeyJson.error?.includes("Paystack API authentication failed (401)") ||
-        invalidKeyJson.error?.includes("PAYSTACK_SECRET_KEY"),
-      `Clear error returned indicating API authentication failure: "${invalidKeyJson.error}"`
-    );
+    const checkoutJson = await checkoutRes.json();
+    if (checkoutRes.status === 200) {
+      assert(
+        checkoutJson.success === true &&
+          typeof checkoutJson.authorizationUrl === "string" &&
+          checkoutJson.authorizationUrl.startsWith("https://checkout.paystack.com/"),
+        `Initiation with configured Paystack test key returns 200 OK with real Paystack authorization URL: ${checkoutJson.authorizationUrl}`
+      );
+    } else {
+      assert(
+        checkoutRes.status === 500 &&
+          (checkoutJson.error?.includes("Paystack API authentication failed (401)") ||
+            checkoutJson.error?.includes("PAYSTACK_SECRET_KEY")),
+        `Initiation with invalid key returns clear configuration error: "${checkoutJson.error}"`
+      );
+    }
+
 
     // -------------------------------------------------------------
     // Test 11: Entitlement Safety Verification

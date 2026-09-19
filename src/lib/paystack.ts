@@ -17,6 +17,47 @@ export interface InitializePaystackResult {
   reference: string;
 }
 
+export interface PaystackTransactionData {
+  id: number;
+  domain: string; // "test" or "live"
+  status: string; // e.g. "success", "failed", "abandoned"
+  reference: string;
+  amount: number; // in minor units
+  message: string | null;
+  gateway_response: string;
+  paid_at: string | null;
+  created_at: string;
+  channel: string;
+  currency: string;
+  ip_address: string;
+  metadata?: Record<string, unknown> | null;
+  customer?: {
+    id: number;
+    email: string;
+    customer_code: string;
+  } | null;
+  authorization?: {
+    authorization_code?: string;
+    bin?: string;
+    last4?: string;
+    exp_month?: string;
+    exp_year?: string;
+    channel?: string;
+    card_type?: string;
+    bank?: string;
+    country_code?: string;
+    brand?: string;
+    reusable?: boolean;
+    signature?: string;
+  } | null;
+}
+
+export interface VerifyPaystackResult {
+  status: boolean;
+  message: string;
+  data: PaystackTransactionData;
+}
+
 /**
  * Validates and retrieves the Paystack secret key from environment variables.
  * Enforces test mode strictly: keys MUST begin with 'sk_test_'.
@@ -44,7 +85,6 @@ export function getPaystackSecretKey(): string {
     secretKey = secretKey.trim().replace(/^["']|["']$/g, "").trim();
   }
 
-
   if (!secretKey) {
     throw new Error("PAYSTACK_SECRET_KEY is not configured in environment variables.");
   }
@@ -57,8 +97,6 @@ export function getPaystackSecretKey(): string {
 
   return secretKey;
 }
-
-
 
 /**
  * Generates a unique, cryptographically random reference for checkout initiation.
@@ -136,4 +174,75 @@ export async function initializePaystackTransaction(
     accessCode: data.data.access_code,
     reference: data.data.reference || params.reference,
   };
+}
+
+/**
+ * Verifies a transaction status with Paystack's server API:
+ * GET https://api.paystack.co/transaction/verify/:reference
+ */
+export async function verifyPaystackTransaction(
+  reference: string
+): Promise<VerifyPaystackResult> {
+  const secretKey = getPaystackSecretKey();
+
+  let response: Response;
+  try {
+    response = await fetch(
+      `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${secretKey}`,
+          Accept: "application/json",
+        },
+      }
+    );
+  } catch (networkError) {
+    const errorMsg =
+      networkError instanceof Error ? networkError.message : "Network request failed";
+    throw new Error(`Failed to reach Paystack API for verification: ${errorMsg}`);
+  }
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok || !data?.status) {
+    const message = data?.message || `HTTP ${response.status} ${response.statusText}`;
+    if (response.status === 401) {
+      throw new Error(
+        `Paystack API authentication failed (401): ${message}. Please verify that PAYSTACK_SECRET_KEY is a valid test secret key (sk_test_...).`
+      );
+    }
+    throw new Error(`Paystack transaction verification failed: ${message}`);
+  }
+
+  return data as VerifyPaystackResult;
+}
+
+/**
+ * Verifies the HMAC SHA512 signature of an incoming Paystack webhook payload.
+ * Uses timingSafeEqual to protect against timing attacks.
+ */
+export function verifyPaystackSignature(rawBody: string, signature: string | null): boolean {
+  if (!signature || !rawBody) {
+    return false;
+  }
+
+  try {
+    const secretKey = getPaystackSecretKey();
+    const expectedHash = crypto
+      .createHmac("sha512", secretKey)
+      .update(rawBody)
+      .digest("hex");
+
+    const signatureBuffer = Buffer.from(signature.trim(), "hex");
+    const expectedBuffer = Buffer.from(expectedHash, "hex");
+
+    if (signatureBuffer.length !== expectedBuffer.length) {
+      return false;
+    }
+
+    return crypto.timingSafeEqual(signatureBuffer, expectedBuffer);
+  } catch {
+    return false;
+  }
 }

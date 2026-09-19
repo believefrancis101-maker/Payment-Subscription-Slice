@@ -110,7 +110,7 @@ export default async function PlansPage({ searchParams }: PlansPageProps) {
           </div>
         </div>
 
-        {/* Checkout Return Status Banner (Notice: No entitlement granted on browser return) */}
+        {/* Checkout Return Status Banner (Notice: Entitlement requires server verification) */}
         {checkout_status === "completed" && (
           <div
             id="checkout-return-banner"
@@ -122,13 +122,12 @@ export default async function PlansPage({ searchParams }: PlansPageProps) {
               </span>
               <div>
                 <h2 className="text-sm font-semibold text-blue-950 dark:text-blue-200">
-                  Payment Initiated in Sandbox
+                  Checkout Redirect Received
                 </h2>
                 <p className="mt-0.5 text-xs sm:text-sm text-blue-800 dark:text-blue-300/90">
-                  Hosted checkout redirect returned with reference:{" "}
+                  Transaction reference:{" "}
                   <span className="font-mono font-bold">{reference || "N/A"}</span>.
-                  Subscription entitlement is not granted merely by checkout initiation or browser redirect.
-                  Full server-side verification and webhook handling will activate in Stage 3.
+                  Entitlements are established exclusively through server-side verification and signed Paystack webhooks, never from browser redirects alone.
                 </p>
               </div>
             </div>
