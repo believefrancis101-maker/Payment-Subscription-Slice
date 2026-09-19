@@ -18,11 +18,11 @@ function VerifyEmailContent() {
   // 60-second cooldown timer
   const [cooldownSeconds, setCooldownSeconds] = useState(60);
 
-  useEffect(() => {
-    if (emailParam) {
-      setEmail(emailParam);
-    }
-  }, [emailParam]);
+  const [prevEmailParam, setPrevEmailParam] = useState(emailParam);
+  if (emailParam !== prevEmailParam) {
+    setPrevEmailParam(emailParam);
+    setEmail(emailParam);
+  }
 
   useEffect(() => {
     if (cooldownSeconds <= 0) return;

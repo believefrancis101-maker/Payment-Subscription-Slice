@@ -9,7 +9,7 @@ const SESSION_COOKIE_NAME = "auth_session";
  * Unauthenticated requests are redirected to /signin with the original
  * URL preserved as ?next= so the user lands back here after sign-in.
  */
-const PROTECTED_PREFIXES = ["/dashboard"];
+const PROTECTED_PREFIXES = ["/dashboard", "/plans"];
 
 /**
  * Routes that signed-in users should not reach.

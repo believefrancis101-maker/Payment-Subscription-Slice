@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     const normalizedEmail = email.toLowerCase().trim();
 
     // 1. Check if user already exists
-    let existingUser = await prisma.user.findUnique({
+    const existingUser = await prisma.user.findUnique({
       where: { email: normalizedEmail },
       include: {
         verificationCodes: {
@@ -152,9 +152,14 @@ export async function POST(request: NextRequest) {
         },
         { status: 201 }
       );
-    } catch (createError: any) {
+    } catch (createError: unknown) {
       // Handle concurrent race condition where two identical requests hit at the exact same millisecond
-      if (createError.code === "P2002") {
+      if (
+        typeof createError === "object" &&
+        createError !== null &&
+        "code" in createError &&
+        createError.code === "P2002"
+      ) {
         // Unique constraint on email collided concurrently.
         // Fetch the winner of the race condition and return an idempotent 200 response.
         const winner = await prisma.user.findUnique({
