@@ -35,17 +35,28 @@ const PLAN_FEATURES: Record<string, string[]> = {
   ],
 };
 
-export default async function PlansPage() {
+interface PlansPageProps {
+  searchParams?: Promise<{
+    checkout_status?: string;
+    reference?: string;
+  }>;
+}
+
+export default async function PlansPage({ searchParams }: PlansPageProps) {
   const user = await getCurrentUser();
 
   if (!user) {
     redirect("/signin?next=/plans");
   }
 
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const { checkout_status, reference } = resolvedSearchParams;
+
   const [plans, activeSubscription] = await Promise.all([
     getActivePlans(),
     getUserActiveSubscription(user.id),
   ]);
+
 
   // Determine current active plan:
   // If user has an active paid subscription, that plan is active.
@@ -98,6 +109,32 @@ export default async function PlansPage() {
             </div>
           </div>
         </div>
+
+        {/* Checkout Return Status Banner (Notice: No entitlement granted on browser return) */}
+        {checkout_status === "completed" && (
+          <div
+            id="checkout-return-banner"
+            className="mb-8 rounded-xl border border-blue-300/80 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 shadow-sm dark:border-blue-700/50 dark:from-blue-950/40 dark:to-indigo-950/30"
+          >
+            <div className="flex items-start gap-3">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-200 text-sm font-bold text-blue-900 dark:bg-blue-900 dark:text-blue-200">
+                ℹ️
+              </span>
+              <div>
+                <h2 className="text-sm font-semibold text-blue-950 dark:text-blue-200">
+                  Payment Initiated in Sandbox
+                </h2>
+                <p className="mt-0.5 text-xs sm:text-sm text-blue-800 dark:text-blue-300/90">
+                  Hosted checkout redirect returned with reference:{" "}
+                  <span className="font-mono font-bold">{reference || "N/A"}</span>.
+                  Subscription entitlement is not granted merely by checkout initiation or browser redirect.
+                  Full server-side verification and webhook handling will activate in Stage 3.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
 
         {/* Header Title */}
         <div className="text-center mb-10">
