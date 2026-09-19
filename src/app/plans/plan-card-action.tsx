@@ -8,6 +8,7 @@ interface PlanCardActionProps {
   planName: string;
   isCurrent: boolean;
   isPaid: boolean;
+  hasActivePaidSubscription?: boolean;
 }
 
 export default function PlanCardAction({
@@ -15,12 +16,12 @@ export default function PlanCardAction({
   planName,
   isCurrent,
   isPaid,
+  hasActivePaidSubscription,
 }: PlanCardActionProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-
 
   if (isCurrent) {
     return (
@@ -33,6 +34,25 @@ export default function PlanCardAction({
         >
           Current Plan
         </button>
+      </div>
+    );
+  }
+
+  // Active subscription protection: Do not allow purchasing another paid plan at Stage 4
+  if (hasActivePaidSubscription && isPaid) {
+    return (
+      <div className="w-full space-y-1.5">
+        <button
+          type="button"
+          disabled
+          aria-disabled="true"
+          className="w-full cursor-not-allowed rounded-lg border border-zinc-200 bg-zinc-50 py-2.5 px-4 text-center text-xs font-medium text-zinc-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-500"
+        >
+          Plan Changes Handled in Next Stage
+        </button>
+        <p className="text-[11px] text-center text-zinc-400 dark:text-zinc-500">
+          Upgrades & plan changes are not implemented at this stage.
+        </p>
       </div>
     );
   }

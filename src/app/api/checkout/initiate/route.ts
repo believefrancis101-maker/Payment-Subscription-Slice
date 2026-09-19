@@ -96,6 +96,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 5b. Active Subscription Protection (Stage 4 constraint: No upgrades/replacements)
+    const existingActiveSubscription = await prisma.subscription.findFirst({
+      where: {
+        userId: user.id,
+        status: "active",
+        currentPeriodStart: { lte: new Date() },
+        currentPeriodEnd: { gte: new Date() },
+      },
+      include: { plan: true },
+    });
+
+    if (existingActiveSubscription && existingActiveSubscription.plan.amountMinor > 0) {
+      return NextResponse.json(
+        {
+          error:
+            "You already have an active subscription. Subscription changes and upgrades are not supported at this stage.",
+        },
+        { status: 409 }
+      );
+    }
+
     // 6. Generate Unique Provider Reference
     const reference = generateCheckoutReference();
 

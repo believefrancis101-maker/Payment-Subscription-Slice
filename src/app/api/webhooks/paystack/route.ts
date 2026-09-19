@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { verifyPaystackSignature } from "@/lib/paystack";
+import { fulfilSubscription } from "@/lib/fulfilment";
 
 export async function POST(request: NextRequest) {
   try {
@@ -89,6 +90,12 @@ export async function POST(request: NextRequest) {
     });
 
     if (existingEvent) {
+      // Ensure subscription fulfilment has been processed idempotently
+      await fulfilSubscription({
+        provider: "paystack",
+        providerReference: reference,
+      });
+
       return NextResponse.json(
         {
           received: true,
@@ -221,10 +228,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // 10. Fulfil Subscription (Stage 4 Entitlement)
+    const fulfilment = await fulfilSubscription({
+      provider: "paystack",
+      providerReference: reference,
+    });
+
     return NextResponse.json(
       {
         received: true,
         success: true,
+        fulfilled: fulfilment.success,
         reference,
         message: "Payment verified and recorded successfully.",
       },

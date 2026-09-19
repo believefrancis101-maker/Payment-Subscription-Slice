@@ -8,6 +8,7 @@ import {
 } from "@/lib/rate-limit";
 import { checkoutVerifySchema } from "@/lib/validation/checkout";
 import { verifyPaystackTransaction } from "@/lib/paystack";
+import { fulfilSubscription } from "@/lib/fulfilment";
 
 const VERIFY_IP_LIMIT = { limit: 15, windowSeconds: 60 };
 const VERIFY_USER_LIMIT = { limit: 10, windowSeconds: 60 };
@@ -115,15 +116,31 @@ export async function POST(request: NextRequest) {
     });
 
     if (existingVerification) {
+      const fulfilment = await fulfilSubscription({
+        provider: "paystack",
+        providerReference: reference,
+      });
+
+      if (fulfilment.conflict) {
+        return NextResponse.json(
+          { error: fulfilment.error },
+          { status: 409 }
+        );
+      }
+
       return NextResponse.json(
         {
           success: true,
           verified: true,
+          fulfilled: fulfilment.success,
           idempotent: true,
           reference,
           amountMinor: existingVerification.amountMinor,
           currency: existingVerification.currency,
           planName: plan.name,
+          subscriptionId: fulfilment.subscription?.id,
+          currentPeriodStart: fulfilment.subscription?.currentPeriodStart,
+          currentPeriodEnd: fulfilment.subscription?.currentPeriodEnd,
         },
         { status: 200 }
       );
@@ -326,15 +343,38 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 12. Return Success (Entitlement preserved for fulfilment stage)
+    // 12. Fulfil Subscription (Stage 4 Entitlement)
+    const fulfilment = await fulfilSubscription({
+      provider: "paystack",
+      providerReference: reference,
+    });
+
+    if (fulfilment.conflict) {
+      return NextResponse.json(
+        { error: fulfilment.error },
+        { status: 409 }
+      );
+    }
+
+    if (!fulfilment.success) {
+      return NextResponse.json(
+        { error: fulfilment.error || "Subscription fulfilment failed." },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json(
       {
         success: true,
         verified: true,
+        fulfilled: true,
         reference,
         amountMinor: txData.amount,
         currency: txData.currency,
         planName: plan.name,
+        subscriptionId: fulfilment.subscription?.id,
+        currentPeriodStart: fulfilment.subscription?.currentPeriodStart,
+        currentPeriodEnd: fulfilment.subscription?.currentPeriodEnd,
       },
       { status: 200 }
     );

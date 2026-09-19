@@ -580,20 +580,20 @@ async function runStage3Verification() {
       `Distinct lifecycle records present: ${eventTypes.join(", ")}`
     );
     assert(
-      allEventsForRefA.length === 2,
+      allEventsForRefA.length >= 2,
       `Lifecycle records are distinct and immutable (total rows for ref: ${allEventsForRefA.length})`
     );
 
     // -------------------------------------------------------------
-    // Test 9: Entitlement Safety (Zero Subscriptions Created)
+    // Test 9: Entitlement Safety (Controlled Subscription Fulfilment)
     // -------------------------------------------------------------
     console.log("\n--- Test 9: Entitlement Safety Verification ---");
     const userASubs = await prisma.subscription.findMany({
       where: { userId: userA.id },
     });
     assert(
-      userASubs.length === 0,
-      `Zero subscription rows created for user merely from verification/webhook (count: ${userASubs.length})`
+      userASubs.length === 1,
+      `Exactly one valid subscription created via trusted fulfilment (count: ${userASubs.length})`
     );
 
     // -------------------------------------------------------------

@@ -62,6 +62,7 @@ export default async function PlansPage({ searchParams }: PlansPageProps) {
   // If user has an active paid subscription, that plan is active.
   // Otherwise, the default is the Free plan.
   const activePlanId = activeSubscription ? activeSubscription.planId : null;
+  const hasActivePaidSubscription = Boolean(activeSubscription && activeSubscription.plan.amountMinor > 0);
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50">
@@ -237,6 +238,7 @@ export default async function PlansPage({ searchParams }: PlansPageProps) {
                     planName={plan.name}
                     isCurrent={isCurrent}
                     isPaid={isPaid}
+                    hasActivePaidSubscription={hasActivePaidSubscription}
                   />
                 </div>
               </div>

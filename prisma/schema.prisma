@@ -102,10 +102,11 @@ model Subscription {
   cancelAtPeriodEnd        Boolean   @default(false)
   cancelledAt              DateTime?
   cancellationReason       String?
-  providerCustomerCode     String?
-  providerSubscriptionCode String?
-  createdAt                DateTime  @default(now())
-  updatedAt                DateTime  @updatedAt
+  providerCustomerCode        String?
+  providerSubscriptionCode    String?
+  originatingPaymentReference String    @unique
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime  @updatedAt
 
   user             User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   plan             Plan                 @relation(fields: [planId], references: [id])

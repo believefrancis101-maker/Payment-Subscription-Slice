@@ -22,11 +22,13 @@ export async function getActivePlans(): Promise<Plan[]> {
 export async function getUserActiveSubscription(
   userId: string
 ): Promise<SubscriptionWithPlan | null> {
+  const now = new Date();
   const subscription = await prisma.subscription.findFirst({
     where: {
       userId,
       status: "active",
-      currentPeriodEnd: { gte: new Date() },
+      currentPeriodStart: { lte: now },
+      currentPeriodEnd: { gte: now },
     },
     include: {
       plan: true,
