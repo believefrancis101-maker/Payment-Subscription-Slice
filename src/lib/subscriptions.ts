@@ -81,3 +81,24 @@ export function formatIntervalLabel(interval: string): string {
       return `/${interval}`;
   }
 }
+export async function getUserPaymentHistory(userId: string) {
+  return prisma.paymentEvent.findMany({
+    where: {
+      userId,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+    select: {
+      id: true,
+      provider: true,
+      providerReference: true,
+      eventType: true,
+      status: true,
+      amountMinor: true,
+      currency: true,
+      createdAt: true,
+      processedAt: true,
+    },
+  });
+}
