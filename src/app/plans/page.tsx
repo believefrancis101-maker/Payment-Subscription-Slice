@@ -1,14 +1,17 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth/session";
+
 import {
   getActivePlans,
   getUserActiveSubscription,
   formatPrice,
   formatIntervalLabel,
 } from "@/lib/subscriptions";
+import { getPendingDowngrade } from "@/lib/downgrades";
 import PlanCardAction from "./plan-card-action";
 import SignOutButton from "../dashboard/sign-out-button";
+import CheckoutReturn from "./checkout/checkout-return";
 
 export const metadata = {
   title: "Subscription Plans — Test Mode",
@@ -37,8 +40,9 @@ const PLAN_FEATURES: Record<string, string[]> = {
 
 interface PlansPageProps {
   searchParams?: Promise<{
-    checkout_status?: string;
-    reference?: string;
+    checkout_status?: string | string[];
+    reference?: string | string[];
+    trxref?: string | string[];
   }>;
 }
 
@@ -50,12 +54,20 @@ export default async function PlansPage({ searchParams }: PlansPageProps) {
   }
 
   const resolvedSearchParams = searchParams ? await searchParams : {};
-  const { checkout_status, reference } = resolvedSearchParams;
+  const rawStatus = resolvedSearchParams.checkout_status;
+  const checkout_status = Array.isArray(rawStatus) ? rawStatus[0] : rawStatus;
+
+  const rawReference = resolvedSearchParams.reference ?? resolvedSearchParams.trxref;
+  const reference = Array.isArray(rawReference) ? rawReference[0] : rawReference;
 
   const [plans, activeSubscription] = await Promise.all([
     getActivePlans(),
     getUserActiveSubscription(user.id),
   ]);
+
+  const pendingDowngrade = activeSubscription
+    ? await getPendingDowngrade(activeSubscription.id)
+    : null;
 
 
   // Determine current active plan:
@@ -71,7 +83,13 @@ export default async function PlansPage({ searchParams }: PlansPageProps) {
     activeSubscription.plan.interval.toLowerCase() === "monthly" &&
     !activeSubscription.cancelAtPeriodEnd
   );
-
+  // Stage 6: a user on an active Yearly plan may schedule a downgrade to Monthly.
+  const isDowngradeEligible = Boolean(
+    activeSubscription &&
+    activeSubscription.plan.amountMinor > 0 &&
+    activeSubscription.plan.interval.toLowerCase() === "yearly" &&
+    !activeSubscription.cancelAtPeriodEnd
+  );
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50">
       {/* Top Navigation */}
@@ -119,28 +137,9 @@ export default async function PlansPage({ searchParams }: PlansPageProps) {
           </div>
         </div>
 
-        {/* Checkout Return Status Banner (Notice: Entitlement requires server verification) */}
+        {/* Checkout Return: verify payment server-side and redirect to dashboard */}
         {checkout_status === "completed" && (
-          <div
-            id="checkout-return-banner"
-            className="mb-8 rounded-xl border border-blue-300/80 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 shadow-sm dark:border-blue-700/50 dark:from-blue-950/40 dark:to-indigo-950/30"
-          >
-            <div className="flex items-start gap-3">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-200 text-sm font-bold text-blue-900 dark:bg-blue-900 dark:text-blue-200">
-                ℹ️
-              </span>
-              <div>
-                <h2 className="text-sm font-semibold text-blue-950 dark:text-blue-200">
-                  Checkout Redirect Received
-                </h2>
-                <p className="mt-0.5 text-xs sm:text-sm text-blue-800 dark:text-blue-300/90">
-                  Transaction reference:{" "}
-                  <span className="font-mono font-bold">{reference || "N/A"}</span>.
-                  Entitlements are established exclusively through server-side verification and signed Paystack webhooks, never from browser redirects alone.
-                </p>
-              </div>
-            </div>
-          </div>
+          <CheckoutReturn reference={reference} />
         )}
 
 
@@ -168,17 +167,20 @@ export default async function PlansPage({ searchParams }: PlansPageProps) {
               "Customer support",
             ];
 
+            const isDowngradeScheduled = Boolean(
+              isDowngradeEligible && pendingDowngrade?.toPlanId === plan.id
+            );
+
             return (
               <div
                 key={plan.id}
                 id={`plan-card-${plan.name.toLowerCase()}`}
-                className={`relative flex flex-col justify-between rounded-2xl border bg-white p-6 shadow-sm transition-all dark:bg-zinc-900 ${
-                  isCurrent
+                className={`relative flex flex-col justify-between rounded-2xl border bg-white p-6 shadow-sm transition-all dark:bg-zinc-900 ${isCurrent
                     ? "border-zinc-900 ring-2 ring-zinc-900 dark:border-zinc-100 dark:ring-zinc-100"
                     : isPopular
-                    ? "border-zinc-400 dark:border-zinc-600"
-                    : "border-zinc-200 dark:border-zinc-800"
-                }`}
+                      ? "border-zinc-400 dark:border-zinc-600"
+                      : "border-zinc-200 dark:border-zinc-800"
+                  }`}
               >
                 {/* Badges */}
                 <div className="absolute -top-3 right-6 flex items-center gap-1.5">
@@ -250,6 +252,14 @@ export default async function PlansPage({ searchParams }: PlansPageProps) {
                     upgradeFromMonthly={
                       isUpgradeEligible && !isCurrent && plan.name.toLowerCase() === "yearly"
                     }
+                    downgradeToMonthly={
+                      isDowngradeEligible &&
+                      !isCurrent &&
+                      plan.name.toLowerCase() === "monthly" &&
+                      !isDowngradeScheduled
+                    }
+                    downgradeScheduled={isDowngradeScheduled}
+                    downgradeEffectiveAt={pendingDowngrade?.effectiveAt.toISOString()}
                   />
                 </div>
               </div>
