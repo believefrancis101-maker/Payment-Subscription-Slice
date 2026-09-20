@@ -318,6 +318,9 @@ export async function applyDueSubscriptionChanges(
   const errors: Array<{ changeId: string; error: string }> = [];
 
   for (const change of dueChanges) {
+    try {
+      const subscription = change.subscription;
+
       // The subscription may have been changed by another request,
       // marked to cancel at period end, or cancelled by another run.
       if (
