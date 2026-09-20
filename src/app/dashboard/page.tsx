@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getUserActiveSubscription, formatPrice } from "@/lib/subscriptions";
 import SignOutButton from "./sign-out-button";
+import CancelSubscriptionAction from "../plans/cancel-subscription-action";
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
@@ -53,9 +54,15 @@ export default async function DashboardPage() {
                 <span className="font-semibold text-zinc-700 dark:text-zinc-300">
                   Billing Information
                 </span>
-                <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 capitalize">
-                  {activeSubscription.status}
-                </span>
+                {activeSubscription.cancelAtPeriodEnd ? (
+                  <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 capitalize">
+                    Cancels at period end
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 capitalize">
+                    {activeSubscription.status}
+                  </span>
+                )}
               </div>
               <div className="flex justify-between">
                 <span className="text-zinc-500 dark:text-zinc-400">Plan Rate</span>
@@ -70,11 +77,23 @@ export default async function DashboardPage() {
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-zinc-500 dark:text-zinc-400">Renewal / Period End</span>
+                <span className="text-zinc-500 dark:text-zinc-400">
+                  {activeSubscription.cancelAtPeriodEnd ? "Access Until" : "Renewal / Period End"}
+                </span>
                 <span className="font-medium text-zinc-900 dark:text-zinc-100">
                   {formatDate(activeSubscription.currentPeriodEnd)}
                 </span>
               </div>
+
+              {activeSubscription.plan.amountMinor > 0 && (
+                <div className="pt-2 border-t border-zinc-200 dark:border-zinc-700/60">
+                  <CancelSubscriptionAction
+                    planName={activeSubscription.plan.name}
+                    currentPeriodEnd={activeSubscription.currentPeriodEnd}
+                    cancelAtPeriodEnd={activeSubscription.cancelAtPeriodEnd}
+                  />
+                </div>
+              )}
             </div>
           )}
 

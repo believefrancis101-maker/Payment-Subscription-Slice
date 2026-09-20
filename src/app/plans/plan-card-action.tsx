@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import UpgradeCardAction from "./upgrade-card-action";
+import CancelSubscriptionAction from "./cancel-subscription-action";
 
 interface PlanCardActionProps {
   planId: string;
@@ -14,6 +15,8 @@ interface PlanCardActionProps {
   downgradeToMonthly?: boolean;
   downgradeScheduled?: boolean;
   downgradeEffectiveAt?: string;
+  cancelAtPeriodEnd?: boolean;
+  currentPeriodEnd?: string;
 }
 
 export default function PlanCardAction({
@@ -26,6 +29,8 @@ export default function PlanCardAction({
   downgradeToMonthly,
   downgradeScheduled,
   downgradeEffectiveAt,
+  cancelAtPeriodEnd,
+  currentPeriodEnd,
 }: PlanCardActionProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -53,7 +58,7 @@ export default function PlanCardAction({
 
   if (isCurrent) {
     return (
-      <div className="w-full">
+      <div className="w-full space-y-2">
         <button
           type="button"
           disabled
@@ -62,6 +67,14 @@ export default function PlanCardAction({
         >
           Current Plan
         </button>
+
+        {hasActivePaidSubscription && isPaid && (
+          <CancelSubscriptionAction
+            planName={planName}
+            cancelAtPeriodEnd={cancelAtPeriodEnd}
+            currentPeriodEnd={currentPeriodEnd}
+          />
+        )}
       </div>
     );
   }

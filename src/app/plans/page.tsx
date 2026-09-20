@@ -260,6 +260,8 @@ export default async function PlansPage({ searchParams }: PlansPageProps) {
                     }
                     downgradeScheduled={isDowngradeScheduled}
                     downgradeEffectiveAt={pendingDowngrade?.effectiveAt.toISOString()}
+                    cancelAtPeriodEnd={Boolean(activeSubscription?.cancelAtPeriodEnd)}
+                    currentPeriodEnd={activeSubscription?.currentPeriodEnd.toISOString()}
                   />
                 </div>
               </div>
